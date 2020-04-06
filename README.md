@@ -12,4 +12,5 @@ We are helping to create sustainable medical programs for African healthcare cen
 
 ### Some reference videos 
 Haptic sim complete system: https://www.youtube.com/watch?v=FeTtc5d_kQc
+
 EM tracked complete system: https://www.youtube.com/watch?v=MY4pXcp_OFY&feature=emb_logo
