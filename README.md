@@ -14,9 +14,10 @@ Also consider
 - Simulation of core placement
 - Scoring metric (based on zone coverage during use)
 
+### Potential Data
+Meyer 2019: http://isgwww.cs.uni-magdeburg.de/cas/isbi2019/
 
-
-### Some reference videos 
+### Some references
 Haptic sim complete system: https://www.youtube.com/watch?v=FeTtc5d_kQc
 
 EM tracked complete system: https://www.youtube.com/watch?v=MY4pXcp_OFY&feature=emb_logo
