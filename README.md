@@ -2,7 +2,7 @@
 TRUS and prostate biopsy training simulator
 
 ## Background
-Helping to create sustainable medical programs for African healthcare centres. There is a current need in Senegal for training and clinical applications of ultrasound (US) guided interventions, specifically prostate cancer imaging tools. This program will be designed to train medical workers in the prostate biopsy procedure using TRUS simulation. 
+Helping to create sustainable medical programs for healthcare centres in African countries. There is a current need in Senegal for training and clinical applications of ultrasound (US) guided interventions, specifically prostate cancer imaging tools. This program will be designed to train medical workers in the prostate biopsy procedure using TRUS simulation. 
 
 ## Current objectives
 - Virtual TRUS
