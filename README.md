@@ -13,7 +13,8 @@ Helping to create sustainable medical programs for healthcare centres in African
 ### 3) Simulate biopsy needle
   - Should be aimable
   - Module for needle trajectory placement
-### 4) Find prostate imaging and biopsy protocols and implement scoring metric
+### 4) Implement scoring metric
+  - Obtain current prostate biopsy protocols 
 
 ### Some references
 Haptic sim complete system: https://www.youtube.com/watch?v=FeTtc5d_kQc
