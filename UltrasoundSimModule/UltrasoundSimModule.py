@@ -48,11 +48,11 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
 
     #set up slicer scene
     slicer.mrmlScene.Clear()
-    scene = "C:/Users/cat_w/OneDrive - Queen's University/Perk Lab/USRA project 2020/ProstateBiopsySim/UltrasoundSimModule/Resources" \
-            "/scene.mrb"
+    scene = self.getPath("/Resources/scene.mrb")
+
 
     try:
-      self.loadScene(scene)
+      slicer.util.loadScene(scene)
     except RuntimeError:
       self.makeScene()
 
@@ -128,11 +128,30 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     # Add vertical spacer
     self.layout.addStretch(1)
 
+    # function to load files from the resources folder
+  def getPath(self, path):
+    script_dir = os.path.dirname(__file__)  # <-- absolute dir the script is in
+
+    file_path = os.path.join(script_dir, path)
+    return file_path
 
   #function to create the scene if there is no saved version
   def makeScene(self):
-    volumeNode = slicer.util.loadVolume(
-      "C:/Users/cat_w/OneDrive - Queen's University/Perk Lab/ProstateBiopsySim/Ultrasound/prostate_US.nii")
+
+    US_path = self.getPath("Resources/prostate_US.nrrd")
+    zone_path = self.getPath("Resources/zones.seg.nrrd")
+
+
+    volumeNode = slicer.util.loadVolume(US_path)
+    zoneNode = slicer.util.loadLabelVolume(zone_path)
+
+    labelmapVolumeNode = slicer.util.getNode('zones')
+    seg = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
+    slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(labelmapVolumeNode, seg)
+    seg.CreateClosedSurfaceRepresentation()
+    slicer.mrmlScene.RemoveNode(labelmapVolumeNode)
+    segDisplay = seg.GetDisplayNode()
+    segDisplay.SetVisibility(False)
 
     # create and name all transforms
     ReferenceToRAS = slicer.vtkMRMLTransformNode()
@@ -172,6 +191,7 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
       logging.info("Scene saved to: {0}".format(sceneSaveFilename))
     else:
       logging.error("Scene saving failed")
+
 
 
   def importDicom(dicomDataDir, dicomDatabase=None, copyFiles=False):
