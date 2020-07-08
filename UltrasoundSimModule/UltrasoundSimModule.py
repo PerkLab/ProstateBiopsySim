@@ -48,13 +48,10 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
 
     #set up slicer scene
     slicer.mrmlScene.Clear()
-    scene = self.getPath("/Resources/scene.mrb")
+    scene = self.getPath("Resources/scene.mrb")
 
-
-    try:
-      slicer.util.loadScene(scene)
-    except RuntimeError:
-      self.makeScene()
+    slicer.util.loadScene(scene)
+    self.makeScene()
 
 
     parametersCollapsibleButton = ctk.ctkCollapsibleButton()
@@ -64,57 +61,9 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     # Layout within the dummy collapsible button
     parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
 
-    ''' default code. not being used atm---------------------------------------------------------------------
-    # input volume selector
-    #
-    self.inputSelector = slicer.qMRMLNodeComboBox()
-    self.inputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-    self.inputSelector.selectNodeUponCreation = True
-    self.inputSelector.addEnabled = False
-    self.inputSelector.removeEnabled = False
-    self.inputSelector.noneEnabled = False
-    self.inputSelector.showHidden = False
-    self.inputSelector.showChildNodeTypes = False
-    self.inputSelector.setMRMLScene( slicer.mrmlScene )
-    self.inputSelector.setToolTip( "Pick the input to the algorithm." )
-    parametersFormLayout.addRow("Input Volume: ", self.inputSelector)
 
     #
-    # output volume selector
-    #
-    self.outputSelector = slicer.qMRMLNodeComboBox()
-    self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-    self.outputSelector.selectNodeUponCreation = True
-    self.outputSelector.addEnabled = True
-    self.outputSelector.removeEnabled = True
-    self.outputSelector.noneEnabled = True
-    self.outputSelector.showHidden = False
-    self.outputSelector.showChildNodeTypes = False
-    self.outputSelector.setMRMLScene( slicer.mrmlScene )
-    self.outputSelector.setToolTip( "Pick the output to the algorithm." )
-    parametersFormLayout.addRow("Output Volume: ", self.outputSelector)
-
-    #
-    # threshold value
-    #
-    self.imageThresholdSliderWidget = ctk.ctkSliderWidget()
-    self.imageThresholdSliderWidget.singleStep = 0.1
-    self.imageThresholdSliderWidget.minimum = -100
-    self.imageThresholdSliderWidget.maximum = 100
-    self.imageThresholdSliderWidget.value = 0.5
-    self.imageThresholdSliderWidget.setToolTip("Set threshold value for computing the output image. Voxels that have intensities lower than this value will set to zero.")
-    parametersFormLayout.addRow("Image threshold", self.imageThresholdSliderWidget)
-
-    #
-    # check box to trigger taking screen shots for later use in tutorials
-    #
-    self.enableScreenshotsFlagCheckBox = qt.QCheckBox()
-    self.enableScreenshotsFlagCheckBox.checked = 0
-    self.enableScreenshotsFlagCheckBox.setToolTip("If checked, take screen shots for tutorials. Use Save Data to write them to disk.")
-    parametersFormLayout.addRow("Enable Screenshots", self.enableScreenshotsFlagCheckBox)'''
-
-    #
-    # Save button
+    # Save scene button
     #
     self.saveButton = qt.QPushButton("Save Scene")
     self.saveButton.enabled = True
@@ -135,17 +84,17 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     file_path = os.path.join(script_dir, path)
     return file_path
 
-  #function to create the scene if there is no saved version
+  #function to create the scene
   def makeScene(self):
 
     US_path = self.getPath("Resources/prostate_US.nrrd")
     zone_path = self.getPath("Resources/zones.seg.nrrd")
 
-
-    volumeNode = slicer.util.loadVolume(US_path)
+    #load US and zonal anatomy
+    slicer.util.loadVolume(US_path)
     zoneNode = slicer.util.loadLabelVolume(zone_path)
 
-    labelmapVolumeNode = slicer.util.getNode('zones')
+    labelmapVolumeNode = zoneNode
     seg = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
     slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(labelmapVolumeNode, seg)
     seg.CreateClosedSurfaceRepresentation()
@@ -154,37 +103,36 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     segDisplay.SetVisibility(False)
 
     # create and name all transforms
-    ReferenceToRAS = slicer.vtkMRMLTransformNode()
+    ReferenceToRAS = slicer.util.getNode("ReferenceToRAS")
     ProbeToReference = slicer.vtkMRMLTransformNode()
-    ImageToProbe = slicer.vtkMRMLTransformNode()
+    ImageToProbe = slicer.util.getNode("ImageToProbe")
     ProbeModelToProbe = slicer.vtkMRMLTransformNode()
 
-    slicer.mrmlScene.AddNode(ReferenceToRAS)
-    ReferenceToRAS.SetName("ReferenceToRAS")
     slicer.mrmlScene.AddNode(ProbeToReference)
     ProbeToReference.SetName("ProbeToReference")
-    slicer.mrmlScene.AddNode(ImageToProbe)
-    ImageToProbe.SetName("ImageToProbe")
     slicer.mrmlScene.AddNode(ProbeModelToProbe)
     ProbeModelToProbe.SetName("ProbeModelToProbe")
 
     # Create hierarchy
-    volumeNode.SetAndObserveTransformNodeID(ImageToProbe.GetID())
     ProbeModelToProbe.SetAndObserveTransformNodeID(ProbeToReference.GetID())
     ImageToProbe.SetAndObserveTransformNodeID(ProbeToReference.GetID())
     ProbeToReference.SetAndObserveTransformNodeID(ReferenceToRAS.GetID())
 
 
-  #function to load in previously saved transforms
-  def loadScene(self, scenePath):
-    slicer.util.loadScene(scenePath)
-
 
   #save the scene to resources to be reloaded later
   def saveScene(self):
+
+    #clean up nodes that do not need to be saved
+    delete = [slicer.util.getNode('prostate_US'), slicer.util.getNode('ProbeToReference'),
+              slicer.util.getNode('Segmentation'), slicer.util.getNode('ProbeModelToProbe')]
+
+    for i in delete:
+      slicer.mrmlScene.RemoveNode(i)
+
     # Generate file name
     sceneSaveFilename = "C:/Users/cat_w/OneDrive - Queen's University/Perk Lab/USRA project 2020/ProstateBiopsySim" \
-                        "/UltrasoundSimModule/Resources/saved-scene-.mrb"
+                        "/UltrasoundSimModule/Resources/scene.mrb"
 
     # Save scene
     if slicer.util.saveScene(sceneSaveFilename):
@@ -192,27 +140,6 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     else:
       logging.error("Scene saving failed")
 
-
-
-  def importDicom(dicomDataDir, dicomDatabase=None, copyFiles=False):
-    """ Import DICOM files from folder into Slicer database
-    """
-    try:
-      indexer = ctk.ctkDICOMIndexer()
-      assert indexer is not None
-      if dicomDatabase is None:
-        logging.info('Hi')
-        dicomDatabase = slicer.dicomDatabase
-      logging.info("hi")
-      indexer.addDirectory(dicomDatabase, dicomDataDir, copyFiles)
-      logging.info("hi")
-      indexer.waitForImportFinished()
-    except Exception as e:
-      import traceback
-      traceback.print_exc()
-      logging.error('Failed to import DICOM folder ' + dicomDataDir)
-      return False
-    return True
 
   def onApplyButton(self):
     self.saveScene()
@@ -231,7 +158,7 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
 
 
-
+'''-----end of edited code. below is default--------------------------------------------------------------------'''
 #
 # UltrasoundSimModuleLogic
 #
