@@ -58,18 +58,14 @@
     MaxTimeSpentWithProcessingMs="50" 
     ListeningPort="18944" 
     SendValidTransformsOnly="true" 
-    OutputChannelId="TrackedVideoStream" > 
+    OutputChannelId="TrackerStream" > 
     <DefaultClientInfo> 
       <MessageTypes> 
-        <Message Type="IMAGE" />
         <Message Type="TRANSFORM" />
       </MessageTypes>
       <TransformNames>
         <Transform Name="Marker0ToTracker" />
       </TransformNames>
-      <ImageNames>
-        <Image Name="Image" EmbeddedTransformToFrame="Image" />
-      </ImageNames>
     </DefaultClientInfo>
   </PlusOpenIGTLinkServer>
 
