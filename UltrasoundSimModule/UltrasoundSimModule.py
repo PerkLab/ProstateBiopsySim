@@ -38,61 +38,60 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
+  def init(self, parent):
+    ScriptedLoadableModuleWidget.__init__(self, parent)
+
+    #self.logic = SingleSliceSegmentationLogic()
+
+    # Members
+    self.parameterSetNode = None
+    self.ui = None
+
+    # Shortcuts
+    #self.shortcutDown = qt.QShortcut(slicer.util.mainWindow())
+    #self.shortcutDown.setKey(qt.QKeySequence("down"))
+    self.shortcutUp = qt.QShortcut(slicer.util.mainWindow())
+    self.shortcutUp.setKey(qt.QKeySequence(qt.Key_Up))
+    self.shortcutRight = qt.QShortcut(slicer.util.mainWindow())
+    self.shortcutRight.setKey(qt.QKeySequence(qt.Key_Right))
+    self.shortcutLeft = qt.QShortcut(slicer.util.mainWindow())
+    self.shortcutLeft.setKey(qt.QKeySequence(qt.Key_Left))
+
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
 
     # Instantiate and connect widgets ...
+    uiWidget = slicer.util.loadUI(self.resourcePath('UI/UltrasoundSimModule.ui'))
+    self.layout.addWidget(uiWidget)
+    self.ui = slicer.util.childWidgetVariables(uiWidget)
 
-    #
-    # Parameters Area
+    #to choose the input TRUS.
+    self.ui.inputTRUSSelector.setMRMLScene(slicer.mrmlScene)
+
+    #connect buttons
+    self.ui.upButton.connect('clicked(bool)', self.onArrowButton)
+    self.ui.downButton.connect('clicked(bool)', self.onArrowButton)
+    self.ui.rightButton.connect('clicked(bool)', self.onArrowButton)
+    self.ui.saveButton.connect('clicked(bool)', self.onSaveButton)
 
     #set up slicer scene
     slicer.mrmlScene.Clear()
-    scene = self.getPath("Resources/scene.mrb")
-
+    scene = self.resourcePath('scene.mrb')
     slicer.util.loadScene(scene)
     self.makeScene()
 
 
-    parametersCollapsibleButton = ctk.ctkCollapsibleButton()
-    parametersCollapsibleButton.text = "Parameters"
-    self.layout.addWidget(parametersCollapsibleButton)
-
-    # Layout within the dummy collapsible button
-    parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
-
-
-    #
-    # Save scene button
-    #
-    self.saveButton = qt.QPushButton("Save Scene")
-    self.saveButton.enabled = True
-    parametersFormLayout.addRow(self.saveButton)
-
-    # connections
-    self.saveButton.connect('clicked(bool)', self.onApplyButton)
-    #self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-    #self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-
-    # Add vertical spacer
-    self.layout.addStretch(1)
-
-    # function to load files from the resources folder
-  def getPath(self, path):
-    script_dir = os.path.dirname(__file__)  # <-- absolute dir the script is in
-
-    file_path = os.path.join(script_dir, path)
-    return file_path
-
   #function to create the scene
   def makeScene(self):
 
-    US_path = self.getPath("Resources/prostate_US.nrrd")
-    zone_path = self.getPath("Resources/zones.seg.nrrd")
+    US_path = self.resourcePath('prostate_US.nrrd')
+    zone_path = self.resourcePath('zones.seg.nrrd')
+    probe_path = self.resourcePath('probe_v01.stl')
 
     #load US and zonal anatomy
     slicer.util.loadVolume(US_path)
     zoneNode = slicer.util.loadLabelVolume(zone_path)
+    probeModel = slicer.util.loadModel(probe_path)
 
     labelmapVolumeNode = zoneNode
     seg = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
@@ -106,26 +105,54 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     ReferenceToRAS = slicer.util.getNode("ReferenceToRAS")
     ProbeToReference = slicer.vtkMRMLTransformNode()
     ImageToProbe = slicer.util.getNode("ImageToProbe")
-    ProbeModelToProbe = slicer.vtkMRMLTransformNode()
+    ProbeModelToProbe = slicer.util.getNode("ProbeModelToProbe")
 
     slicer.mrmlScene.AddNode(ProbeToReference)
     ProbeToReference.SetName("ProbeToReference")
-    slicer.mrmlScene.AddNode(ProbeModelToProbe)
-    ProbeModelToProbe.SetName("ProbeModelToProbe")
 
     # Create hierarchy
+    probeModel.SetAndObserveTransformNodeID(ProbeModelToProbe.GetID())
     ProbeModelToProbe.SetAndObserveTransformNodeID(ProbeToReference.GetID())
     ImageToProbe.SetAndObserveTransformNodeID(ProbeToReference.GetID())
     ProbeToReference.SetAndObserveTransformNodeID(ReferenceToRAS.GetID())
 
+    # Clean up extra camera nodes
+    camera = slicer.util.getNode('Default Scene Camera')
+    slicer.mrmlScene.RemoveNode(camera)
+
+
+  def enter(self):
+    """Runs whenever the module is reopened"""
+    logging.info('Entered module widget')
+
+    self.shortcutUp = qt.QShortcut(slicer.util.mainWindow())
+    self.shortcutUp.setKey(qt.QKeySequence(qt.Key_Up))
+
+    # Update UI
+    self.connectKeyboardShortcuts()
+
+  #connect arrow keys to transform node
+  def connectKeyboardShortcuts(self):
+    self.shortcutUp.connect('activated()', self.onArrowButton)
+    #self.shortcutD.connect('activated()', self.onClearButton)
+    #self.shortcutC.connect('activated()', self.onCaptureButton)
+
+
+#TRYING TO FIGURE THIS OUT
+  def onArrowButton(self):
+    transform = slicer.util.getNode('ProbeToReference')
+    logging.info('up pressed')
+
+    #trying to connect buttons to ProbeToReference transform...
 
 
   #save the scene to resources to be reloaded later
-  def saveScene(self):
+  def onSaveButton(self):
 
     #clean up nodes that do not need to be saved
     delete = [slicer.util.getNode('prostate_US'), slicer.util.getNode('ProbeToReference'),
-              slicer.util.getNode('Segmentation'), slicer.util.getNode('ProbeModelToProbe')]
+              slicer.util.getNode('Segmentation'),
+              slicer.util.getNode('probe_v01')]
 
     for i in delete:
       slicer.mrmlScene.RemoveNode(i)
@@ -140,15 +167,6 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     else:
       logging.error("Scene saving failed")
 
-
-  def onApplyButton(self):
-    self.saveScene()
-
-    '''logic = UltrasoundSimModuleLogic()
-      enableScreenshotsFlag = self.enableScreenshotsFlagCheckBox.checked
-      imageThreshold = self.imageThresholdSliderWidget.value
-      logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), imageThreshold, enableScreenshotsFlag)
-  '''
 
 
   def cleanup(self):
