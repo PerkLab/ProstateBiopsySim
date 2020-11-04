@@ -17,41 +17,67 @@
       <cursorShape>ArrowCursor</cursorShape>
      </property>
      <property name="text">
-      <string>Input / output selections</string>
+      <string>Input selection</string>
      </property>
      <layout class="QFormLayout" name="formLayout_3">
       <item row="0" column="0">
-       <widget class="QLabel" name="label">
+       <widget class="QLabel" name="inputTRUSSelector">
         <property name="text">
-         <string>Input TRUS volume</string>
+         <string>Choose a TRUS</string>
         </property>
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="qMRMLNodeComboBox" name="inputTRUSSelector">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="toolTip">
-         <string>Pick the output to the algorithm.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLScalarVolumeNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
+       <widget class="ctkComboBox" name="ComboBox">
+        <property name="editable">
          <bool>false</bool>
         </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
+        <property name="maxVisibleItems">
+         <number>10</number>
         </property>
-        <property name="addEnabled">
-         <bool>true</bool>
+        <property name="modelColumn">
+         <number>0</number>
         </property>
-        <property name="removeEnabled">
-         <bool>true</bool>
-        </property>
+        <item>
+         <property name="text">
+          <string>Not Selected</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Patient 1</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Patient 2</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Patient 3</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Patient 4</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Patient 5</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Patient 6</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Patient 7</string>
+         </property>
+        </item>
        </widget>
       </item>
      </layout>
@@ -68,31 +94,17 @@
      <layout class="QFormLayout" name="formLayout_4">
       <item row="0" column="1">
        <layout class="QGridLayout" name="gridLayout">
-        <item row="1" column="1">
-         <widget class="QPushButton" name="leftButton">
+        <item row="0" column="0">
+         <widget class="QPushButton" name="rightButton">
           <property name="text">
-           <string>LEFT</string>
+           <string>RIGHT (right arrow key)</string>
           </property>
          </widget>
         </item>
         <item row="0" column="1">
-         <widget class="QPushButton" name="downButton">
+         <widget class="QPushButton" name="leftButton">
           <property name="text">
-           <string>DOWN</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="0">
-         <widget class="QPushButton" name="upButton">
-          <property name="text">
-           <string>UP</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QPushButton" name="rightButton">
-          <property name="text">
-           <string>RIGHT</string>
+           <string>LEFT (left arrow key)</string>
           </property>
          </widget>
         </item>
@@ -131,9 +143,9 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>qMRMLNodeComboBox</class>
-   <extends>QWidget</extends>
-   <header>qMRMLNodeComboBox.h</header>
+   <class>ctkComboBox</class>
+   <extends>QComboBox</extends>
+   <header>ctkComboBox.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

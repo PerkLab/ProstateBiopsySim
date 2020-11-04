@@ -51,15 +51,6 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     # Members
     self.ui = None
 
-    # Shortcuts
-    #self.shortcutDown = qt.QShortcut(slicer.util.mainWindow())
-    #self.shortcutDown.setKey(qt.QKeySequence("down"))
-    self.shortcutUp = qt.QShortcut(slicer.util.mainWindow())
-    self.shortcutUp.setKey(qt.QKeySequence(qt.Key_Up))
-    self.shortcutRight = qt.QShortcut(slicer.util.mainWindow())
-    self.shortcutRight.setKey(qt.QKeySequence(qt.Key_Right))
-    self.shortcutLeft = qt.QShortcut(slicer.util.mainWindow())
-    self.shortcutLeft.setKey(qt.QKeySequence(qt.Key_Left))
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -70,94 +61,143 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     self.ui = slicer.util.childWidgetVariables(uiWidget)
 
     #to choose the input TRUS.
-    self.ui.inputTRUSSelector.setMRMLScene(slicer.mrmlScene)
+    #self.ui.inputTRUSSelector.setMRMLScene(slicer.mrmlScene)
+    logging.info(int(self.ui.ComboBox.currentIndex))
+    self.ui.ComboBox.currentIndexChanged.connect(self.makeScene)
+
 
     #connect buttons
-    self.ui.upButton.connect('clicked(bool)', lambda: self.onUpDownArrowButton("up"))
-    self.ui.downButton.connect('clicked(bool)', lambda: self.onUpDownArrowButton("down"))
+    #self.ui.upButton.connect('clicked(bool)', lambda: self.onUpDownArrowButton("up"))
+   # self.ui.downButton.connect('clicked(bool)', lambda: self.onUpDownArrowButton("down"))
     self.ui.rightButton.connect('clicked(bool)', lambda: self.onRightLeftArrowButton("right"))
     self.ui.leftButton.connect('clicked(bool)', lambda: self.onRightLeftArrowButton("left"))
     self.ui.saveButton.connect('clicked(bool)', self.onSaveButton)
 
     self.shortcutUp = qt.QShortcut(slicer.util.mainWindow())
     self.shortcutUp.setKey(qt.QKeySequence("Up"))
-
-    # Update UI
+    self.shortcutDown = qt.QShortcut(slicer.util.mainWindow())
+    self.shortcutDown.setKey(qt.QKeySequence("Down"))
+    self.shortcutRight = qt.QShortcut(slicer.util.mainWindow())
+    self.shortcutRight.setKey(qt.QKeySequence("Right"))
+    self.shortcutLeft = qt.QShortcut(slicer.util.mainWindow())
+    self.shortcutLeft.setKey(qt.QKeySequence("Left"))
     self.connectKeyboardShortcuts()
-    logging.info("hi")
-    #set up slicer scene
-    slicer.mrmlScene.Clear()
-    scene = self.resourcePath('scene.mrb')
-    slicer.util.loadScene(scene)
-    self.makeScene()
 
+  #custom layout to show 3D view and yellow slice
+  def splitSliceViewer(self):
+
+    customLayout = """
+    <layout type="vertical" split="true">
+      <item>
+       <view class="vtkMRMLViewNode" singletontag="1">
+         <property name="viewlabel" action="default">1</property>
+       </view>
+      </item>
+      <item>
+       <view class="vtkMRMLSliceNode" singletontag="Yellow">
+        <property name="orientation" action="default">Sagittal</property>
+        <property name="viewlabel" action="default">Y</property>
+        <property name="viewcolor" action="default">#EDD54C</property>
+       </view>
+      </item>
+    </layout>
+    """
+
+    # Built-in layout IDs are all below 100, so you can choose any large random number
+    # for your custom layout ID.
+    customLayoutId = 501
+
+    layoutManager = slicer.app.layoutManager()
+    layoutManager.layoutLogic().GetLayoutNode().AddLayoutDescription(customLayoutId, customLayout)
+
+    # Switch to the new custom layout
+    layoutManager.setLayout(customLayoutId)
 
   #function to create the scene
   def makeScene(self):
 
-    TRUSVolume = slicer.mrmlScene.GetFirstNodeByName("prostate_US")
-    probeModel = slicer.mrmlScene.GetFirstNodeByName("probe_v01")
+    # set up slicer scene
+    slicer.mrmlScene.Clear()
+    patient = self.ui.ComboBox.currentIndex
 
-    if TRUSVolume is None:
-      US_path = self.resourcePath('prostate_US.nrrd')
-      zone_path = self.resourcePath('zones.seg.nrrd')
-      probe_path = self.resourcePath('probe_v01.stl')
+    #only set up the scene if a patient is selected
+    if patient != 0:
+      scene = self.resourcePath('scene'+ str(patient) + '.mrb')
+      slicer.util.loadScene(scene)
 
-      #load US and zonal anatomy
-      slicer.util.loadVolume(US_path)
-      zoneNode = slicer.util.loadLabelVolume(zone_path)
-      probeModel = slicer.util.loadModel(probe_path)
+      TRUSVolume = slicer.mrmlScene.GetFirstNodeByName("TRUS")
+      probeModel = slicer.mrmlScene.GetFirstNodeByName("probe_v01")
+      zoneNode = slicer.mrmlScene.GetFirstNodeByName("Segmentation")
+      self.splitSliceViewer()  # get the yellow slice
 
-      labelmapVolumeNode = zoneNode
-      seg = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
-      slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(labelmapVolumeNode, seg)
-      seg.CreateClosedSurfaceRepresentation()
-      slicer.mrmlScene.RemoveNode(labelmapVolumeNode)
-      segDisplay = seg.GetDisplayNode()
-      segDisplay.SetVisibility(False)
+      #load TRUS and probe
+      if TRUSVolume is None:
+        US_path = self.resourcePath('registered_zones/Patient_' + str(patient) + '/TRUS.nrrd')
+        slicer.util.loadVolume(US_path)
+      if probeModel is None:
+        probe_path = self.resourcePath('probe_v01.stl')
+        probeModel = slicer.util.loadModel(probe_path)
+      #load zone segmentation
+      if zoneNode is None:
+        zone_path = self.resourcePath('registered_zones/Patient_' + str(patient) + '/Zones.seg.nrrd')
+        zoneNode = slicer.util.loadLabelVolume(zone_path)
 
-    # create and name all transforms
-    ReferenceToRAS =  slicer.mrmlScene.GetFirstNodeByName("ReferenceToRAS")
-    ProbeToReference =  slicer.mrmlScene.GetFirstNodeByName(self.PROBE_TO_REFERENCE)
-    SliceToImage =  slicer.mrmlScene.GetFirstNodeByName("SliceToImage")
-    ProbeModelToProbe =  slicer.mrmlScene.GetFirstNodeByName(self.PROBEMODEL_TO_PROBE)
-    RotatedToProbeModel = slicer.mrmlScene.GetFirstNodeByName(self.ROTATED_TO_PROBEMODEL)
-    ImageToProbe = slicer.mrmlScene.GetFirstNodeByName(self.IMAGE_TO_PROBE)
+        labelmapVolumeNode = zoneNode
+        seg = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
+        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(labelmapVolumeNode, seg)
+        seg.CreateClosedSurfaceRepresentation()
+        slicer.mrmlScene.RemoveNode(labelmapVolumeNode)
+        segDisplay = seg.GetDisplayNode()
+        segDisplay.SetVisibility(False)
 
-    if RotatedToProbeModel is None:
-      RotatedToProbeModel = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", self.ROTATED_TO_PROBEMODEL)
-    if ReferenceToRAS is None:
-      ReferenceToRAS = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", "ReferenceToRAS")
-    if ProbeToReference is None:
-      ProbeToReference = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", self.PROBE_TO_REFERENCE)
-    if ImageToProbe is None:
-      ImageToProbe = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", self.IMAGE_TO_PROBE)
+      # create and name all transforms
+      ReferenceToRAS =  slicer.mrmlScene.GetFirstNodeByName("ReferenceToRAS")
+      ProbeToReference =  slicer.mrmlScene.GetFirstNodeByName(self.PROBE_TO_REFERENCE)
+      SliceToImage =  slicer.mrmlScene.GetFirstNodeByName("SliceToImage")
+      ProbeModelToProbe =  slicer.mrmlScene.GetFirstNodeByName(self.PROBEMODEL_TO_PROBE)
+      RotatedToProbeModel = slicer.mrmlScene.GetFirstNodeByName(self.ROTATED_TO_PROBEMODEL)
+      ImageToProbe = slicer.mrmlScene.GetFirstNodeByName(self.IMAGE_TO_PROBE)
 
-    # Create hierarchy
-    probeModel.SetAndObserveTransformNodeID(RotatedToProbeModel.GetID())
-    ProbeModelToProbe.SetAndObserveTransformNodeID(ProbeToReference.GetID())
-    SliceToImage.SetAndObserveTransformNodeID(ImageToProbe.GetID())
-    ProbeToReference.SetAndObserveTransformNodeID(ReferenceToRAS.GetID())
-    RotatedToProbeModel.SetAndObserveTransformNodeID(ProbeModelToProbe.GetID())
-    ImageToProbe.SetAndObserveTransformNodeID(ProbeToReference.GetID())
+      if RotatedToProbeModel is None:
+        RotatedToProbeModel = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", self.ROTATED_TO_PROBEMODEL)
+      if ProbeModelToProbe is None:
+        ProbeModelToProbe = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", self.PROBEMODEL_TO_PROBE)
+      if SliceToImage is None:
+        SliceToImage = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", "SliceToImage")
+      if ReferenceToRAS is None:
+        ReferenceToRAS = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", "ReferenceToRAS")
+      if ProbeToReference is None:
+        ProbeToReference = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", self.PROBE_TO_REFERENCE)
+      if ImageToProbe is None:
+        ImageToProbe = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", self.IMAGE_TO_PROBE)
 
-    # Clean up extra camera nodes
-    camera = slicer.util.getNode('Default Scene Camera')
-    slicer.mrmlScene.RemoveNode(camera)
+      # Create hierarchy
+      probeModel.SetAndObserveTransformNodeID(RotatedToProbeModel.GetID())
+      ProbeModelToProbe.SetAndObserveTransformNodeID(ProbeToReference.GetID())
+      SliceToImage.SetAndObserveTransformNodeID(ImageToProbe.GetID())
+      ProbeToReference.SetAndObserveTransformNodeID(ReferenceToRAS.GetID())
+      RotatedToProbeModel.SetAndObserveTransformNodeID(ProbeModelToProbe.GetID())
+      ImageToProbe.SetAndObserveTransformNodeID(ProbeToReference.GetID())
+
+      # Clean up extra camera nodes
+      for i in range(3):
+        camera = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLCameraNode')
+        slicer.mrmlScene.RemoveNode(camera)
 
 
   def enter(self):
     """Runs whenever the module is reopened"""
     logging.info('Entered module')
+    self.connectKeyboardShortcuts()
+    #self.ui.ComboBox.currentIndexChanged.connect(makeScene())
 
-
-
-  #connect arrow keys to transform node. TRYING TO WORK THIS OUT
+  #connect arrow keys to transform node. ONLY WORKS WHEN SLICER RESTARTS
   def connectKeyboardShortcuts(self):
-    logging.info("hi")
-    self.shortcutUp.connect('activated()', lambda: self.onUpDownArrowButton('up'))
-    #self.shortcutD.connect('activated()', self.onClearButton)
-    #self.shortcutC.connect('activated()', self.onCaptureButton)
+    self.shortcutUp.connect('activated()', lambda: self.onUpDownArrowButton("up"))
+    self.shortcutDown.connect('activated()', lambda : self.onUpDownArrowButton("down"))
+    self.shortcutRight.connect('activated()', lambda : self.onRightLeftArrowButton("right"))
+    self.shortcutLeft.connect('activated()', lambda: self.onRightLeftArrowButton("left"))
+    # keyboard shortcuts for arrow keys
 
 
   #arrow buttons now connected to probe model. up/down rotation.
@@ -185,7 +225,7 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
         rotationAngle = 2
 
     # Do not allow the user to move the probe more than 3 times in one direction. To be amended during scanning protocols
-    if NumberOfRotations <= 3:
+    if NumberOfRotations <= 1:
         # rotate probe model
         ProbeModelToCOR.Translate(8, 4, -150)
         Rotation.RotateX(rotationAngle * (NumberOfRotations + 1))
@@ -223,14 +263,14 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     # Check current rotatedtoprobe matrix against its original positioning to determine how much the user has already
     # rotated it
     if arrow == "right":
-        NumberOfRotations = (RotatedMatrix.GetElement(2, 0) / 0.034)
-        rotationAngle = 2
+        NumberOfRotations = (RotatedMatrix.GetElement(2, 0) / 0.02)
+        rotationAngle = 1
     if arrow == "left":
-        NumberOfRotations = (RotatedMatrix.GetElement(0, 2) / 0.034)
-        rotationAngle = -2
+        NumberOfRotations = (RotatedMatrix.GetElement(0, 2) / 0.02)
+        rotationAngle = -1
 
      # Do not allow the user to move the probe more than 3 times in one direction. To be amended during scanning protocols
-    if NumberOfRotations <= 3:
+    if NumberOfRotations <= 6:
       ProbeModelToCOR.Translate(8, 4, -150)
       Rotation.RotateY(rotationAngle * (NumberOfRotations + 1))
       CORToRotatedtModel.Translate(-8, -4, 150)
@@ -242,7 +282,7 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
 
       # rotate TRUS
       ImageToCOR.Translate(0, 20, 90)
-      ImageRotation.RotateY(rotationAngle * ((NumberOfRotations) + 1))
+      ImageRotation.RotateY((rotationAngle*1.5) * (NumberOfRotations + 1))
       CORToImage.Translate(0, -20, -90)
       ImageToProbeModelTransform.Concatenate(CORToImage)
       ImageToProbeModelTransform.Concatenate(ImageRotation)
@@ -254,25 +294,32 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
 
 #unsure about this...
   def disconnectKeyboardShortcuts(self):
+
     self.shortcutUp.activated.disconnect()
+    logging.info(self.shortcutUp.activated)
+
+
 
   def exit(self):
     logging.info("exiting")
-
     self.disconnectKeyboardShortcuts()
+    logging.info("done")
 
   #save the scene to resources to be reloaded later
   def onSaveButton(self):
 
     #clean up nodes that do not need to be saved
-    delete = [slicer.util.getNode('ProbeToReference')]
+    delete = [slicer.mrmlScene.GetFirstNodeByName(self.PROBE_TO_REFERENCE), slicer.mrmlScene.GetFirstNodeByName(self.ROTATED_TO_PROBEMODEL),
+              slicer.mrmlScene.GetFirstNodeByName(self.IMAGE_TO_PROBE),slicer.mrmlScene.GetFirstNodeByName('probe_v01'),
+              slicer.mrmlScene.GetFirstNodeByName("Segmentation")]
 
     for i in delete:
       slicer.mrmlScene.RemoveNode(i)
 
+    patient = self.ui.ComboBox.currentIndex
     # Generate file name
     sceneSaveFilename = "C:/Users/cat_w/OneDrive - Queen's University/Perk Lab/USRA project 2020/ProstateBiopsySim" \
-                        "/UltrasoundSimModule/Resources/scene.mrb"
+                        "/UltrasoundSimModule/Resources/scene" + str(patient) + ".mrb"
 
     # Save scene
     if slicer.util.saveScene(sceneSaveFilename):
