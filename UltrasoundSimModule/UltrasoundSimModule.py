@@ -62,9 +62,7 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
 
     #to choose the input TRUS.
     #self.ui.inputTRUSSelector.setMRMLScene(slicer.mrmlScene)
-    logging.info(int(self.ui.ComboBox.currentIndex))
     self.ui.ComboBox.currentIndexChanged.connect(self.makeScene)
-
 
     #connect buttons
     #self.ui.upButton.connect('clicked(bool)', lambda: self.onUpDownArrowButton("up"))
@@ -72,6 +70,9 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     self.ui.rightButton.connect('clicked(bool)', lambda: self.onRightLeftArrowButton("right"))
     self.ui.leftButton.connect('clicked(bool)', lambda: self.onRightLeftArrowButton("left"))
     self.ui.saveButton.connect('clicked(bool)', self.onSaveButton)
+    self.ui.Zones.connect('toggled(bool)', self.showZones)
+    #self.ui.PZone.connect('clicked(bool)', self.onPZClick)
+    self.ui.zoneSelect.currentIndexChanged.connect(self.identifyZone)
 
     self.shortcutUp = qt.QShortcut(slicer.util.mainWindow())
     self.shortcutUp.setKey(qt.QKeySequence("Up"))
@@ -87,7 +88,7 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
   def splitSliceViewer(self):
 
     customLayout = """
-    <layout type="vertical" split="true">
+    <layout type="horizontal" split="true">
       <item>
        <view class="vtkMRMLViewNode" singletontag="1">
          <property name="viewlabel" action="default">1</property>
@@ -198,6 +199,78 @@ class UltrasoundSimModuleWidget(ScriptedLoadableModuleWidget):
     self.shortcutRight.connect('activated()', lambda : self.onRightLeftArrowButton("right"))
     self.shortcutLeft.connect('activated()', lambda: self.onRightLeftArrowButton("left"))
     # keyboard shortcuts for arrow keys
+
+  #show and hide zones based on check box
+  def showZones(self):
+    checked = self.ui.Zones.isChecked()
+    zoneNode = slicer.mrmlScene.GetFirstNodeByName("Segmentation")
+    segDisplay = zoneNode.GetDisplayNode()
+
+    if checked:
+      segDisplay.SetVisibility(True)
+    else:
+      segDisplay.SetVisibility(False)
+
+  #NEXT. GET FIDUCIALS WORKING
+  def identifyZone(self):
+    zones = ["Peripheral", "Central", "Anterior", "Transitional"]
+    index = self.ui.zoneSelect.currentIndex
+    interactionNode = slicer.app.applicationLogic().GetInteractionNode()
+    selectionNode = slicer.app.applicationLogic().GetSelectionNode()
+    selectionNode.SetReferenceActivePlaceNodeClassName("vtkMRMLMarkupsFiducialNode")
+    fiducialNode = slicer.vtkMRMLMarkupsFiducialNode()
+    slicer.mrmlScene.AddNode(fiducialNode)
+    fiducialNode.CreateDefaultDisplayNodes()
+    fiducialNode.SetName(zones[index-1])
+    selectionNode.SetActivePlaceNodeID(fiducialNode.GetID())
+    interactionNode.SetCurrentInteractionMode(interactionNode.Place)
+
+#FOR SCORING LATER. Draw ROI around each segment.
+  def bindSegments(self):
+    segmentationNode = slicer.mrmlScene.GetFirstNodeByName('Segmentation')
+
+    # Compute bounding boxes
+    import SegmentStatistics
+    segStatLogic = SegmentStatistics.SegmentStatisticsLogic()
+    segStatLogic.getParameterNode().SetParameter("Segmentation", segmentationNode.GetID())
+    segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_origin_ras.enabled", str(True))
+    segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_diameter_mm.enabled", str(True))
+    segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_x.enabled",
+                                                 str(True))
+    segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_y.enabled",
+                                                 str(True))
+    segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_z.enabled",
+                                                 str(True))
+    segStatLogic.computeStatistics()
+    stats = segStatLogic.getStatistics()
+
+    # Draw ROI for each oriented bounding box.
+    import numpy as np
+    for segmentId in stats['SegmentIDs']:
+      # Get bounding box
+      obb_origin_ras = np.array(stats[segmentId, "LabelmapSegmentStatisticsPlugin.obb_origin_ras"])
+      obb_diameter_mm = np.array(stats[segmentId, "LabelmapSegmentStatisticsPlugin.obb_diameter_mm"])
+      obb_direction_ras_x = np.array(stats[segmentId, "LabelmapSegmentStatisticsPlugin.obb_direction_ras_x"])
+      obb_direction_ras_y = np.array(stats[segmentId, "LabelmapSegmentStatisticsPlugin.obb_direction_ras_y"])
+      obb_direction_ras_z = np.array(stats[segmentId, "LabelmapSegmentStatisticsPlugin.obb_direction_ras_z"])
+      # Create ROI
+      segment = segmentationNode.GetSegmentation().GetSegment(segmentId)
+      roi = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLAnnotationROINode")
+      roi.SetName(segment.GetName() + ' bounding box')
+      roi.SetXYZ(0.0, 0.0, 0.0)
+      roi.SetRadiusXYZ(*(0.5 * obb_diameter_mm))
+      # Position and orient ROI using a transform
+      obb_center_ras = obb_origin_ras + 0.5 * (
+                obb_diameter_mm[0] * obb_direction_ras_x + obb_diameter_mm[1] * obb_direction_ras_y + obb_diameter_mm[
+          2] * obb_direction_ras_z)
+      boundingBoxToRasTransform = np.row_stack((np.column_stack(
+        (obb_direction_ras_x, obb_direction_ras_y, obb_direction_ras_z, obb_center_ras)), (0, 0, 0, 1)))
+      boundingBoxToRasTransformMatrix = slicer.util.vtkMatrixFromArray(boundingBoxToRasTransform)
+      transformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
+      transformNode.SetAndObserveMatrixTransformToParent(boundingBoxToRasTransformMatrix)
+      roi.SetAndObserveTransformNodeID(transformNode.GetID())
+      box = roi.GetDisplayNode()
+      box.SetVisibility(False)
 
 
   #arrow buttons now connected to probe model. up/down rotation.
